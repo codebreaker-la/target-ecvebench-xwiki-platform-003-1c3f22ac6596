@@ -1,0 +1,21 @@
+{
+  "ghsaId": "GHSA-36fm-j33w-c25f",
+  "vulnClass": "auth-bypass",
+  "language": "java",
+  "tier": "unit",
+  "setup": [
+    "apt-get update -qq && apt-get install -y -qq openjdk-21-jdk > /dev/null 2>&1",
+    "cd /tmp && wget -q https://archive.apache.org/dist/maven/maven-3/3.9.6/binaries/apache-maven-3.9.6-bin.tar.gz && tar xzf apache-maven-3.9.6-bin.tar.gz -C /opt/ && ln -sf /opt/apache-maven-3.9.6/bin/mvn /usr/local/bin/mvn"
+  ],
+  "command": "bash scripts/repro.sh",
+  "timeoutSeconds": 900,
+  "vulnerable": {
+    "exitCode": 0,
+    "marker": "REPRO_VULN_CONFIRMED"
+  },
+  "fixed": {
+    "exitCode": 1,
+    "marker": "REPRO_VULN_NOT_REPRODUCED"
+  },
+  "notes": "Tests that IncludeMacro.execute() calls AuthorExecutor.call() when author=CURRENT and context=CURRENT. On vulnerable code the authorExecutor is never invoked for author=CURRENT, allowing included content to inherit the calling page author's (potentially elevated) rights. The test verifies authorExecutor.call() is invoked, which fails on vulnerable code (Mockito verify fails) and passes on fixed code."
+}
