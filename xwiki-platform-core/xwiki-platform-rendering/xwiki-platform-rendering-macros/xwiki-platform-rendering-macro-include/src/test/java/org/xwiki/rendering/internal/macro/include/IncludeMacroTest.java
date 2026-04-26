@@ -696,6 +696,38 @@ class IncludeMacroTest
         assertBlocks(expected, blocks, this.rendererFactory);
     }
 
+    /**
+     * GHSA-36fm-j33w-c25f: Verify that authorExecutor.call() is invoked when author=CURRENT and context=CURRENT,
+     * so that included content is executed under the target document's author rights rather than inheriting the
+     * caller's elevated rights.
+     */
+    @Test
+    void executeWithCURRENTAuthorShouldCallAuthorExecutor() throws Exception
+    {
+        DocumentReference includedDocumentReference = new DocumentReference("wiki", "Space", "IncludedPage");
+        String includedDocStringRef = "wiki:space.page";
+        setupDocumentMocks(includedDocStringRef, includedDocumentReference, "word");
+
+        IncludeMacroParameters parameters = new IncludeMacroParameters();
+        parameters.setReference(includedDocStringRef);
+        parameters.setContext(Context.CURRENT);
+        parameters.setAuthor(Author.CURRENT);
+
+        MacroTransformation macroTransformation =
+            this.componentManager.getInstance(Transformation.class, "macro");
+        MacroTransformationContext macroContext =
+            createMacroTransformationContext(includedDocStringRef, false);
+        macroContext.setId("wiki:Space.IncludingPage");
+        macroContext.setTransformation(macroTransformation);
+
+        this.includeMacro.execute(parameters, null, macroContext);
+
+        // On vulnerable code the condition at line 199 only checks TARGET and AUTO, so authorExecutor.call()
+        // is never invoked for CURRENT — this verify() will fail.
+        // On fixed code the condition includes CURRENT, so authorExecutor.call() is invoked — verify passes.
+        verify(this.authorExecutor).call(any(), eq(INCLUDED_AUTHOR), eq(includedDocumentReference));
+    }
+
     @Test
     void executeWhenExcludeFirstHeadingTrueAndSectionIsNotFirstBlock() throws Exception
     {

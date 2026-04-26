@@ -1,0 +1,21 @@
+{
+  "ghsaId": "GHSA-36fm-j33w-c25f",
+  "vulnClass": "auth-bypass",
+  "language": "java",
+  "tier": "unit",
+  "setup": [
+    "which java && java -version || true",
+    "which mvn && mvn -version || true"
+  ],
+  "command": "bash scripts/repro.sh",
+  "timeoutSeconds": 900,
+  "vulnerable": {
+    "exitCode": 0,
+    "marker": "REPRO_VULN_CONFIRMED"
+  },
+  "fixed": {
+    "exitCode": 0,
+    "marker": "REPRO_VULN_NOT_REPRODUCED"
+  },
+  "notes": "When author=CURRENT and context=CURRENT, IncludeMacro.execute() skips the authorExecutor.call() invocation because the condition at ~line 199 only checks Author.TARGET and Author.AUTO. This allows included content to inherit the calling page's elevated author rights instead of being scoped to the included document's content author. The fix adds || parameters.getAuthor() == Author.CURRENT to the condition so authorExecutor.call() is always invoked for CURRENT author. The repro script patches parent POMs and downloads dependencies from XWiki Nexus (18.3.0-rc-1 rebranded as 18.4.0-SNAPSHOT) since the SNAPSHOT artifacts are not publicly available."
+}
