@@ -4,18 +4,21 @@
   "language": "java",
   "tier": "unit",
   "setup": [
-    "apt-get update -qq && apt-get install -y -qq openjdk-21-jdk > /dev/null 2>&1",
-    "cd /tmp && wget -q https://archive.apache.org/dist/maven/maven-3/3.9.6/binaries/apache-maven-3.9.6-bin.tar.gz && tar xzf apache-maven-3.9.6-bin.tar.gz -C /opt/ && ln -sf /opt/apache-maven-3.9.6/bin/mvn /usr/local/bin/mvn"
+    "if [ -f .mvn/extensions.xml ]; then mv .mvn/extensions.xml .mvn/extensions.xml.disabled; fi",
+    "apt-get install -y -qq openjdk-21-jdk 2>/dev/null || true",
+    "export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 && export PATH=$JAVA_HOME/bin:$PATH",
+    "wget -q https://archive.apache.org/dist/maven/maven-3/3.9.6/binaries/apache-maven-3.9.6-bin.tar.gz -O /tmp/maven.tar.gz && tar xzf /tmp/maven.tar.gz -C /opt && export PATH=/opt/apache-maven-3.9.6/bin:$PATH",
+    "mvn install -pl xwiki-platform-core/xwiki-platform-rendering/xwiki-platform-rendering-macros/xwiki-platform-rendering-macro-include -am -DskipTests -Denforcer.skip=true -Drevapi.skip=true -q"
   ],
   "command": "bash scripts/repro.sh",
-  "timeoutSeconds": 900,
+  "timeoutSeconds": 600,
   "vulnerable": {
-    "exitCode": 0,
+    "expectedExitCode": 0,
     "marker": "REPRO_VULN_CONFIRMED"
   },
   "fixed": {
-    "exitCode": 1,
+    "expectedExitCode": 0,
     "marker": "REPRO_VULN_NOT_REPRODUCED"
   },
-  "notes": "Tests that IncludeMacro.execute() calls AuthorExecutor.call() when author=CURRENT and context=CURRENT. On vulnerable code the condition at line 199 only checks Author.TARGET and Author.AUTO, so authorExecutor.call() is never invoked for Author.CURRENT — included content inherits the calling page's elevated author rights. The test verifies authorExecutor.call() is invoked, which fails on vulnerable code (Mockito verify fails) and passes on fixed code."
+  "notes": "Tests that authorExecutor.call() is invoked when author=CURRENT with context=CURRENT. On vulnerable code, the condition at IncludeMacro.java:199 only checks TARGET and AUTO, so authorExecutor.call() is skipped for CURRENT, allowing included content to inherit the caller's elevated author rights. The fix adds Author.CURRENT to the condition."
 }
