@@ -32,6 +32,7 @@ import javax.inject.Singleton;
 import org.xwiki.bridge.DocumentModelBridge;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.display.internal.DocumentDisplayerParameters;
+import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.model.reference.EntityReference;
 import org.xwiki.properties.BeanManager;
 import org.xwiki.properties.PropertyException;
@@ -196,9 +197,10 @@ public class IncludeMacro extends AbstractIncludeMacro<IncludeMacroParameters>
             } catch (Exception e) {
                 throw new MacroExecutionException("Failed to retrieve the translated version of the document", e);
             }
-            if (parameters.getAuthor() == Author.TARGET || parameters.getAuthor() == Author.AUTO && !this.authorization
-                .hasAccess(Right.PROGRAM, null, translatedDocumentBridge.getContentAuthorReference(),
-                    translatedDocumentBridge.getDocumentReference())) {
+            if (parameters.getAuthor() == Author.TARGET || parameters.getAuthor() == Author.CURRENT
+                || parameters.getAuthor() == Author.AUTO && !this.authorization
+                    .hasAccess(Right.PROGRAM, null, translatedDocumentBridge.getContentAuthorReference(),
+                        translatedDocumentBridge.getDocumentReference())) {
                 // Merge the two XDOM before executing the included content so that it's as close as possible to the
                 // expect execution conditions
                 MacroBlock includeMacro = context.getCurrentMacroBlock();
@@ -209,10 +211,15 @@ public class IncludeMacro extends AbstractIncludeMacro<IncludeMacroParameters>
                 try {
                     // Execute the content with the right author
                     // Keep the same transformation context
+                    // For Author.CURRENT, use the calling page's author; otherwise use the
+                    // included document's content author.
+                    DocumentReference authorReference = parameters.getAuthor() == Author.CURRENT
+                        ? this.documentAccessBridge.getCurrentAuthorReference()
+                        : translatedDocumentBridge.getContentAuthorReference();
                     this.authorExecutor.call(() -> {
                         this.transformationManager.performTransformations(metadata, context.getTransformationContext());
                         return null;
-                    }, translatedDocumentBridge.getContentAuthorReference(), documentBridge.getDocumentReference());
+                    }, authorReference, documentBridge.getDocumentReference());
                 } catch (Exception e) {
                     throw new MacroExecutionException("Failed to execute tranformations for document ["
                         + translatedDocumentBridge.getDocumentReference() + "]");
