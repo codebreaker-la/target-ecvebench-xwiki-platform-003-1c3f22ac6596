@@ -4,21 +4,18 @@
   "language": "java",
   "tier": "unit",
   "setup": [
-    "if [ -f .mvn/extensions.xml ]; then mv .mvn/extensions.xml .mvn/extensions.xml.disabled; fi",
-    "apt-get install -y -qq openjdk-21-jdk 2>/dev/null || true",
-    "export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 && export PATH=$JAVA_HOME/bin:$PATH",
-    "wget -q https://archive.apache.org/dist/maven/maven-3/3.9.6/binaries/apache-maven-3.9.6-bin.tar.gz -O /tmp/maven.tar.gz && tar xzf /tmp/maven.tar.gz -C /opt && export PATH=/opt/apache-maven-3.9.6/bin:$PATH",
-    "mvn install -pl xwiki-platform-core/xwiki-platform-rendering/xwiki-platform-rendering-macros/xwiki-platform-rendering-macro-include -am -DskipTests -Denforcer.skip=true -Drevapi.skip=true -q"
+    "which java && java -version || true",
+    "which mvn && mvn -version || true"
   ],
   "command": "bash scripts/repro.sh",
-  "timeoutSeconds": 600,
+  "timeoutSeconds": 900,
   "vulnerable": {
-    "expectedExitCode": 0,
+    "exitCode": 0,
     "marker": "REPRO_VULN_CONFIRMED"
   },
   "fixed": {
-    "expectedExitCode": 0,
+    "exitCode": 0,
     "marker": "REPRO_VULN_NOT_REPRODUCED"
   },
-  "notes": "Tests that authorExecutor.call() is invoked when author=CURRENT with context=CURRENT. On vulnerable code, the condition at IncludeMacro.java:199 only checks TARGET and AUTO, so authorExecutor.call() is skipped for CURRENT, allowing included content to inherit the caller's elevated author rights. The fix adds Author.CURRENT to the condition."
+  "notes": "When author=CURRENT and context=CURRENT, IncludeMacro.execute() skips the authorExecutor.call() invocation because the condition at ~line 199 only checks Author.TARGET and Author.AUTO. This allows included content to inherit the calling page's elevated author rights instead of being scoped to the included document's content author. The fix adds || parameters.getAuthor() == Author.CURRENT to the condition so authorExecutor.call() is always invoked for CURRENT author. The repro script patches parent POMs and downloads dependencies from XWiki Nexus (18.3.0-rc-1 rebranded as 18.4.0-SNAPSHOT) since the SNAPSHOT artifacts are not publicly available."
 }
