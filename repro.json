@@ -3,16 +3,19 @@
   "vulnClass": "auth-bypass",
   "language": "java",
   "tier": "unit",
-  "setup": [],
+  "setup": [
+    "apt-get update -qq && apt-get install -y -qq openjdk-21-jdk > /dev/null 2>&1",
+    "cd /tmp && wget -q https://archive.apache.org/dist/maven/maven-3/3.9.6/binaries/apache-maven-3.9.6-bin.tar.gz && tar xzf apache-maven-3.9.6-bin.tar.gz -C /opt/ && ln -sf /opt/apache-maven-3.9.6/bin/mvn /usr/local/bin/mvn"
+  ],
   "command": "bash scripts/repro.sh",
-  "timeoutSeconds": 600,
+  "timeoutSeconds": 900,
   "vulnerable": {
     "exitCode": 0,
     "marker": "REPRO_VULN_CONFIRMED"
   },
   "fixed": {
-    "exitCode": 0,
+    "exitCode": 1,
     "marker": "REPRO_VULN_NOT_REPRODUCED"
   },
-  "notes": "Tests that IncludeMacro.execute() invokes authorExecutor.call() when author=CURRENT and context=CURRENT. On vulnerable code, the condition at line 199 only checks Author.TARGET and Author.AUTO, so authorExecutor.call() is never invoked when Author.CURRENT is specified — the included content inherits the calling page's elevated author rights. The fix adds '|| parameters.getAuthor() == Author.CURRENT' to the condition."
+  "notes": "Tests that IncludeMacro.execute() calls AuthorExecutor.call() when author=CURRENT and context=CURRENT. On vulnerable code the condition at line 199 only checks Author.TARGET and Author.AUTO, so authorExecutor.call() is never invoked for Author.CURRENT — included content inherits the calling page's elevated author rights. The test verifies authorExecutor.call() is invoked, which fails on vulnerable code (Mockito verify fails) and passes on fixed code."
 }
