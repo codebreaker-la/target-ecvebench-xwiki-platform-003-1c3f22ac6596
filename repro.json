@@ -1,0 +1,18 @@
+{
+  "ghsaId": "GHSA-36fm-j33w-c25f",
+  "vulnClass": "auth-bypass",
+  "language": "java",
+  "tier": "unit",
+  "setup": [],
+  "command": "bash scripts/repro.sh",
+  "timeoutSeconds": 600,
+  "vulnerable": {
+    "exitCode": 0,
+    "marker": "REPRO_VULN_CONFIRMED"
+  },
+  "fixed": {
+    "exitCode": 0,
+    "marker": "REPRO_VULN_NOT_REPRODUCED"
+  },
+  "notes": "Tests that IncludeMacro.execute() invokes authorExecutor.call() when author=CURRENT and context=CURRENT. On vulnerable code, the condition at line 199 only checks Author.TARGET and Author.AUTO, so authorExecutor.call() is never invoked when Author.CURRENT is specified — the included content inherits the calling page's elevated author rights. The fix adds '|| parameters.getAuthor() == Author.CURRENT' to the condition."
+}
