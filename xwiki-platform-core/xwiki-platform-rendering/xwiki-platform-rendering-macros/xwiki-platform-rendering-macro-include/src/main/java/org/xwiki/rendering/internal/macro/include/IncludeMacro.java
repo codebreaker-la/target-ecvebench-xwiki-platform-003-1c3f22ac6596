@@ -196,9 +196,10 @@ public class IncludeMacro extends AbstractIncludeMacro<IncludeMacroParameters>
             } catch (Exception e) {
                 throw new MacroExecutionException("Failed to retrieve the translated version of the document", e);
             }
-            if (parameters.getAuthor() == Author.TARGET || parameters.getAuthor() == Author.AUTO && !this.authorization
-                .hasAccess(Right.PROGRAM, null, translatedDocumentBridge.getContentAuthorReference(),
-                    translatedDocumentBridge.getDocumentReference())) {
+            if (parameters.getAuthor() == Author.TARGET || parameters.getAuthor() == Author.CURRENT
+                || parameters.getAuthor() == Author.AUTO && !this.authorization
+                    .hasAccess(Right.PROGRAM, null, translatedDocumentBridge.getContentAuthorReference(),
+                        translatedDocumentBridge.getDocumentReference())) {
                 // Merge the two XDOM before executing the included content so that it's as close as possible to the
                 // expect execution conditions
                 MacroBlock includeMacro = context.getCurrentMacroBlock();
